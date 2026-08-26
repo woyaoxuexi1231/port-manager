@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { PortTable } from './components/PortTable';
+import { PortDetailDialog } from './components/PortDetailDialog';
 import { StatusBar } from './components/StatusBar';
 import { useListeningPorts } from './hooks/useListeningPorts';
-import type { ProtocolFilter, SortDir, SortKey } from './types';
+import type { ListeningPort, ProtocolFilter, SortDir, SortKey } from './types';
 
 function comparePorts(
   a: { protocol: string; local_addr: string; local_port: number; pid: number; process_name: string | null },
@@ -32,6 +33,7 @@ export default function App() {
   const [protocol, setProtocol] = useState<ProtocolFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('port');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [detailPort, setDetailPort] = useState<ListeningPort | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -67,7 +69,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-[#f9fafb] text-[#1a1c20]">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-[#f9fafb] text-[#1a1c20]">
       <Toolbar
         query={query}
         onQueryChange={setQuery}
@@ -83,6 +85,7 @@ export default function App() {
         sortKey={sortKey}
         sortDir={sortDir}
         onSort={handleSort}
+        onDetail={setDetailPort}
       />
       <StatusBar
         total={ports.length}
@@ -91,6 +94,9 @@ export default function App() {
         error={error}
         refreshedAt={refreshedAt}
       />
+      {detailPort && (
+        <PortDetailDialog port={detailPort} onClose={() => setDetailPort(null)} />
+      )}
     </div>
   );
 }

@@ -26,7 +26,7 @@ export function Toolbar({
   onRefresh,
 }: Props) {
   return (
-    <header className="flex flex-wrap items-center gap-3 border-b border-[#e2e4e8] bg-white px-4 py-3">
+    <header className="flex min-w-0 flex-wrap items-center gap-3 border-b border-[#e2e4e8] bg-white px-4 py-3">
       <div className="min-w-0 flex-1">
         <h1 className="text-[15px] font-semibold tracking-tight text-[#1a1c20]">
           Port Manager
