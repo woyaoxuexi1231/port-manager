@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import shutil
-import struct
 import subprocess
 import sys
 from collections import deque
@@ -16,11 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 ICONS = ROOT / "src-tauri" / "icons"
 PUBLIC = ROOT / "public"
 PREVIEW = ROOT / "icon-previews" / "restore-preview.png"
+DESKTOP_PREVIEW = ROOT / "icon-previews" / "desktop-preview.png"
 
 # Initial release artwork — do not redraw or recolor.
 ORIGINAL_COMMIT = "d701291:src-tauri/icons/app-source.png"
-
-ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
 
 def load_original() -> Image.Image:
@@ -68,6 +66,34 @@ def make_outer_white_transparent(img: Image.Image) -> Image.Image:
     return out
 
 
+def clean_white_rim(img: Image.Image) -> Image.Image:
+    """Remove white fringe pixels touching transparency (proxy-switch pipeline)."""
+    out = img.convert("RGBA").copy()
+    px = out.load()
+    w, h = out.size
+    changed = True
+    passes = 0
+    while changed and passes < 8:
+        changed = False
+        passes += 1
+        rim: list[tuple[int, int]] = []
+        for y in range(h):
+            for x in range(w):
+                r, g, b, a = px[x, y]
+                if a == 0:
+                    continue
+                if not (r >= 220 and g >= 220 and b >= 220):
+                    continue
+                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                    if not (0 <= nx < w and 0 <= ny < h) or px[nx, ny][3] == 0:
+                        rim.append((x, y))
+                        break
+        for x, y in rim:
+            px[x, y] = (0, 0, 0, 0)
+            changed = True
+    return out
+
+
 def defringe_rounded_edge(img: Image.Image) -> Image.Image:
     """Recompute edge alpha after removing the white matte (smooth rounded corners)."""
     out = img.convert("RGBA").copy()
@@ -111,8 +137,11 @@ def defringe_rounded_edge(img: Image.Image) -> Image.Image:
     return out
 
 
+def fix_source(img: Image.Image) -> Image.Image:
+    return defringe_rounded_edge(clean_white_rim(make_outer_white_transparent(img)))
+
+
 def downscale_icon(source: Image.Image, size: int) -> Image.Image:
-    """Keep anti-aliased rounded corners when generating smaller assets."""
     return source.convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
 
 
@@ -120,40 +149,39 @@ def write_png(source: Image.Image, path: Path, size: int) -> None:
     downscale_icon(source, size).save(path, "PNG")
 
 
-def write_ico(source: Image.Image, path: Path) -> None:
-    frames = [downscale_icon(source, size) for size in ICO_SIZES]
-    png_payloads: list[bytes] = []
-    for frame in frames:
-        buffer = io.BytesIO()
-        frame.save(buffer, format="PNG")
-        png_payloads.append(buffer.getvalue())
+def npx_command() -> list[str]:
+    return ["npx.cmd" if sys.platform == "win32" else "npx", "tauri", "icon"]
 
-    count = len(frames)
-    header = struct.pack("<HHH", 0, 1, count)
-    directory = bytearray()
-    image_data = bytearray()
-    offset = 6 + (16 * count)
 
-    for frame, payload in zip(frames, png_payloads):
-        width = frame.width if frame.width < 256 else 0
-        height = frame.height if frame.height < 256 else 0
-        directory.extend(
-            struct.pack(
-                "<BBBBHHII",
-                width,
-                height,
-                0,
-                0,
-                1,
-                32,
-                len(payload),
-                offset,
-            )
+def write_platform_icons(source: Image.Image, path_ico: Path, path_icns: Path) -> None:
+    """Delegate ICO/ICNS to Tauri CLI (32px-first ICO, same as proxy-switch)."""
+    tmp = ICONS / ".tauri-icon-build"
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    tmp.mkdir(parents=True)
+    staging = tmp / "app-source.png"
+    source.save(staging, "PNG")
+    try:
+        subprocess.run(
+            [*npx_command(), str(staging), "-o", str(tmp)],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
         )
-        image_data.extend(payload)
-        offset += len(payload)
-
-    path.write_bytes(header + bytes(directory) + bytes(image_data))
+        ico = tmp / "icon.ico"
+        icns = tmp / "icon.icns"
+        if ico.exists():
+            shutil.copy2(ico, path_ico)
+            print(f"wrote {path_ico}")
+        else:
+            print("warning: tauri icon did not produce icon.ico", file=sys.stderr)
+        if icns.exists():
+            shutil.copy2(icns, path_icns)
+            print(f"wrote {path_icns}")
+    finally:
+        if tmp.exists():
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 def checker(size: int) -> Image.Image:
@@ -170,9 +198,7 @@ def checker(size: int) -> Image.Image:
 def save_restore_preview(before: Image.Image, after: Image.Image) -> None:
     cell = 512
     board = Image.new("RGBA", (cell * 2, cell), (24, 24, 24, 255))
-    for idx, (title, img) in enumerate(
-        [("原版（白角）", before), ("修复（透明角）", after)]
-    ):
+    for idx, img in enumerate([before, after]):
         tile = checker(cell)
         layer = img.resize((cell, cell), Image.Resampling.LANCZOS)
         tile.alpha_composite(layer)
@@ -181,36 +207,38 @@ def save_restore_preview(before: Image.Image, after: Image.Image) -> None:
     board.save(PREVIEW, "PNG")
 
 
-def npx_command() -> list[str]:
-    return ["npx.cmd" if sys.platform == "win32" else "npx", "tauri", "icon"]
+def save_desktop_preview(ico_path: Path) -> None:
+    """Simulate desktop shortcut icon (uses 32px ICO layer)."""
+    import struct
 
+    data = ico_path.read_bytes()
+    _, _, count = struct.unpack_from("<HHH", data, 0)
+    offset = 6
+    icon32 = None
+    for _ in range(count):
+        w, h, *_rest, size, img_offset = struct.unpack_from("<BBBBHHII", data, offset)
+        w = 256 if w == 0 else w
+        h = 256 if h == 0 else h
+        if w == 32:
+            icon32 = Image.open(io.BytesIO(data[img_offset : img_offset + size])).convert("RGBA")
+            break
+        offset += 16
+    if icon32 is None:
+        icon32 = Image.open(ico_path).convert("RGBA")
 
-def write_icns(source: Image.Image, path: Path) -> None:
-    tmp = ICONS / ".icns-build"
-    if tmp.exists():
-        shutil.rmtree(tmp)
-    tmp.mkdir(parents=True)
-    staging = tmp / "app-source.png"
-    source.save(staging, "PNG")
-    try:
-        subprocess.run(
-            [*npx_command(), str(staging), "-o", str(tmp)],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        generated = tmp / "icon.icns"
-        if generated.exists():
-            shutil.copy2(generated, path)
-    finally:
-        if tmp.exists():
-            shutil.rmtree(tmp, ignore_errors=True)
+    cell = 128
+    desktop = Image.new("RGBA", (cell, cell + 40), (196, 196, 196, 255))
+    tile = checker(cell)
+    tile.alpha_composite(icon32.resize((cell, cell), Image.Resampling.LANCZOS))
+    desktop.paste(tile, (0, 0))
+    DESKTOP_PREVIEW.parent.mkdir(parents=True, exist_ok=True)
+    desktop.save(DESKTOP_PREVIEW, "PNG")
+    print(f"desktop preview: {DESKTOP_PREVIEW}")
 
 
 def main() -> None:
     original = load_original()
-    fixed = defringe_rounded_edge(make_outer_white_transparent(original))
+    fixed = fix_source(original)
     save_restore_preview(original, fixed)
 
     ICONS.mkdir(parents=True, exist_ok=True)
@@ -222,14 +250,13 @@ def main() -> None:
     write_png(fixed, ICONS / "128x128.png", 128)
     write_png(fixed, ICONS / "128x128@2x.png", 256)
     write_png(fixed, ICONS / "icon.png", 512)
-    write_ico(fixed, ICONS / "icon.ico")
-    write_icns(fixed, ICONS / "icon.icns")
+    write_platform_icons(fixed, ICONS / "icon.ico", ICONS / "icon.icns")
     shutil.copy2(ICONS / "128x128.png", PUBLIC / "favicon.png")
+    save_desktop_preview(ICONS / "icon.ico")
 
     print(f"preview: {PREVIEW}")
     print(f"corner before: {original.getpixel((0, 0))}")
     print(f"corner after:  {fixed.getpixel((0, 0))}")
-    print(f"center kept:   {fixed.getpixel((512, 512))}")
     print("done")
 
 
