@@ -78,6 +78,7 @@ export default function App() {
       />
       <PortTable
         ports={filtered}
+        listKey={`${query}|${protocol}|${sortKey}|${sortDir}|${filtered.length}`}
         loading={loading}
         sortKey={sortKey}
         sortDir={sortDir}

@@ -3,6 +3,8 @@ import { cn } from '../lib/cn';
 
 interface Props {
   ports: ListeningPort[];
+  /** Forces a clean table body remount when the visible set changes. */
+  listKey: string;
   loading: boolean;
   sortKey: SortKey;
   sortDir: SortDir;
@@ -17,7 +19,7 @@ const COLUMNS: { key: SortKey; label: string; className?: string }[] = [
   { key: 'name', label: '进程' },
 ];
 
-export function PortTable({ ports, loading, sortKey, sortDir, onSort }: Props) {
+export function PortTable({ ports, listKey, loading, sortKey, sortDir, onSort }: Props) {
   if (!loading && ports.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center text-[13px] text-[#9ca3af]">
@@ -55,10 +57,10 @@ export function PortTable({ ports, loading, sortKey, sortDir, onSort }: Props) {
             <th className="px-3 py-2 font-medium text-[#6b7280]">路径</th>
           </tr>
         </thead>
-        <tbody>
-          {ports.map((row) => (
+        <tbody key={listKey}>
+          {ports.map((row, index) => (
             <tr
-              key={`${row.protocol}-${row.local_addr}-${row.local_port}-${row.pid}`}
+              key={`${listKey}-${index}`}
               className="border-b border-[#f0f1f3] hover:bg-[#f8f9fa]"
             >
               <td className="px-3 py-2">
