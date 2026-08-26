@@ -20,6 +20,12 @@ Windows desktop tool for inspecting **local listening ports** (TCP / UDP) and th
 - **Backend:** Rust (`GetExtendedTcpTable` / `GetExtendedUdpTable`)
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind 4
 
+## Download
+
+Installers are published on [GitHub Releases](https://github.com/woyaoxuexi1231/port-manager/releases).
+
+Pushing a tag like `v1.0.0` triggers CI to build the Windows NSIS setup and attach it to the release.
+
 ## Develop
 
 Requirements: Node.js 18+, Rust stable, Windows.
