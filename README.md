@@ -3,7 +3,7 @@
 Windows desktop tool for inspecting **local listening ports** (TCP / UDP) and the processes that own them.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-1.1.1-green)
+![Version](https://img.shields.io/badge/version-1.1.2-green)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![Stack](https://img.shields.io/badge/stack-Tauri%202%20%7C%20Rust%20%7C%20React-black)
 

@@ -1,13 +1,14 @@
 {
   "name": "port-manager",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "icons": "python scripts/generate_icons.py"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
