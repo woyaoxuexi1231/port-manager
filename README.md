@@ -1,6 +1,10 @@
 # Port Manager
 
-Windows desktop tool for inspecting **local listening ports** (TCP / UDP) and the processes that own them.
+## 简介 / Introduction
+
+**中文** — Windows 桌面工具，用于排查本地监听端口（TCP / UDP）及归属进程。展示 PID、进程名与可执行路径，支持搜索、协议过滤与列排序；只读查询、不会结束进程，帮你快速定位"是哪个程序占了这个端口"。
+
+**English** — A Windows desktop tool for inspecting local listening ports (TCP / UDP) and the processes that own them. It shows PID, process name, and executable path with search, protocol filtering, and sortable columns — a read-only, query-only tool (never terminates processes) for quickly finding which program holds a port.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Version](https://img.shields.io/badge/version-1.1.3-green)
