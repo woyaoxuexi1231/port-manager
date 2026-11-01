@@ -5,7 +5,7 @@
   "identifier": "com.port-manager.app",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:1421",
+    "devUrl": "http://127.0.0.1:1421",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
